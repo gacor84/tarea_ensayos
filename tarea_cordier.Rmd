@@ -1,0 +1,1053 @@
+---
+title: "Tarea ensayos clínicos"
+author: "Gaëlle Cordier"
+output: pdf_document
+---
+
+```{r libraries,echo=FALSE,message=FALSE}
+library(ggplot2)
+library(knitr)
+library(doBy)
+library(reshape2)
+library(gridExtra)
+```
+
+```{r figures_path,echo=FALSE}
+opts_chunk$set(fig.path = "./figures/") # Set figures path
+```
+
+Se trata de analizar los datos de dos ensayos sencillos en los que se comparan dos
+grupos, en el primer caso mediante una respuesta continua y en el segundo mediante una
+respuesta dicotómica.
+
+En ambos casos hay que comparar las respuestas de los dos grupos primero sin ajustes
+de ningún tipo y luego ajustando por las covariables que se consideren oportunas. También
+hay que seleccionar un tamaño muestral para un ensayo posterior algo mayor y redactar un
+pequeño informe con las conclusiones (que contenga un anexo con el script de R que se haya
+utilizado).
+
+# **PRIMER ENSAYO**
+
+Son datos de un ensayo clínico con pacientes con adenomas en colon y recto. (Giardielo
+et al., 1993, Treatment of colonic and rectal adenomas with Sulindac in familial adenomatous
+polyposis. New England Journal of Medicine, 328, 1313-1316).
+
+Los datos muestran el número de pólipos, en logaritmos decimales, al principio del
+ensayo y al año de tratamiento:
+
+```{r datos,echo=FALSE}
+grupo <- as.factor(c(1,0,1,0,1,0,0,0,1,1,0,0,0,1,0,0,1,1,1))
+levels(grupo) <- c('control','tratado')
+dat.polipos <- data.frame(grupo= grupo,
+                          antes = c(0.84510,0.69897,1.36173,1.54407,1.04139,1.07918, 0.84510,
+                                    2.50243,2.20412,0.90309,1.30103,1.04139,1.38021,1.53148,
+                                    1.73239,1.47712,1.00000, 1.30103,1.07918),
+                          despues=c(0.60206,1.41497,1.20412,1.60206,1.14613,1.20412,1.04139,
+                                    2.63749,1.41497,0.84510,1.65321,1.50515,1.90309,1.53148,
+                                    1.57978,1.75587,0.84510,0.00000,0.90309))
+```
+
+```{r datos_tabla,echo=FALSE}
+kable(dat.polipos,caption = "Datos del ensayo")
+```
+
+Sumario de los datos:
+
+$\\$
+
+```{r data_summary,echo=FALSE}
+# datos long-format
+dat.pol_lf<-melt(data = dat.polipos,measure.vars = c("antes","despues"))
+
+# sumario
+sum1<-summary(dat.pol_lf)
+    # para sustituir NAs por "" en grupo y variable en `kable`:
+sum1<-data.frame(grupo=c(sum1[1:2,1],rep("",4)),
+                 variable=c(sum1[1:2,2],rep("",4)),
+                 value=sum1[,3]) 
+kable(sum1,caption = "Sumario")
+
+sum_names<-c("grupo","Min.","1st Qu.","Median","Mean","3rd Qu.","Max.")
+
+# sumario antes/después
+kable(summaryBy(formula = value~variable,data = dat.pol_lf,FUN = summary),
+      caption = "Sumario antes/después",
+      col.names = sum_names,
+      digits = 3)
+
+# sumario grupo
+kable(summaryBy(formula = value~grupo,data = dat.pol_lf,FUN = summary),
+      caption = "Sumario por grupo de tratamiento",
+      col.names = sum_names,
+      digits = 3)
+
+sum_names_n<-c("grupo","variable","n","Min.","1st Qu.","Median","Mean","3rd Qu.","Max.")
+
+# sumario grupo antes/después
+sum2<-summaryBy(formula = value~grupo*variable,data = dat.pol_lf,FUN = summary)
+    # summaryBy no tiene `n`:
+n<-summaryBy(formula = value~grupo*variable,data = dat.pol_lf,FUN = length)
+sum2_n<-data.frame(sum2[,1:2],n$value.length,sum2[,3:8])
+kable(sum2_n,
+      caption = "Sumario por grupo de tratamiento antes/después",
+      col.names = sum_names_n,
+      digits = 3)
+```
+
+\pagebreak
+
+**Objetivos del análisis estadístico:**
+
+## 1. Análisis estadístico de los datos. ¿Tiene algún efecto el tratamiento en los resultados?
+
+### a) Primera aproximación: análisis de única variable respuesta `despues`
+
++ **Análisis descriptivo**
+
+```{r sum_despues_grupo,echo=FALSE}
+# sumario
+sum_d<-summaryBy(formula = despues~grupo,data = dat.polipos,FUN = summary)
+    # + n:
+n_d<-summaryBy(formula = despues~grupo,data = dat.polipos,FUN = length)[,2]
+    # + s y se
+sd_despues<-summaryBy(formula = despues~grupo,data = dat.polipos,FUN = sd)[,2]
+se_despues<-sd_despues/sqrt(n_d)
+# tabla
+sum_d_ns<-data.frame(sum_d[,1],n_d,sum_d[,2:7],sd_despues,se_despues)
+sum_d_names<-c("grupo","n","Min.","1st Qu.","Median","Mean","3rd Qu.","Max.","S","SE")
+kable(sum_d_ns,col.names = sum_d_names,
+      caption = "Sumario por grupo de tratamiento antes/después",
+      digits = 3)
+```
+
+donde desviación típica $S=\frac{x-\bar{x}}{n-1}$ y error estándar de la media $SE_{\bar{x}}=\frac{s}{\sqrt{n}}$
+
+$\\$
+
+```{r boxplot_despues_grupo,echo=FALSE,fig.width=4,fig.height=4}
+# boxplot
+ggplot(data = dat.polipos, aes(x = grupo, y=despues, fill=grupo))+
+    geom_boxplot()+
+    stat_summary(fun.y="mean", geom="point", shape=4, size=3)+
+    labs(x="",y="",title="Número de pólipos al año de tratamiento\n")+
+    theme(plot.title=element_text(size=10))+
+    scale_fill_discrete(guide=F)
+```
+
+$\\$
+
+El número de pólipos al año de tratamiento parece ser mayor en el grupo control que en el grupo tratado.
+
+\pagebreak
+
++ **Análisis estadístico: ¿es la media en el número de pólipos al año de tratamiento significativamente diferente entre los grupos `control` y `tratado`?**
+
+$H_0:\mu_c=\mu_t \ ; \ H_1:\mu_c\neq\mu_t$
+$\\$
+
+**ANOVA:** F-test $\rightarrow F=\frac{MS_B}{MSE}$
+$\\$
+
+```{r test_hom_var_despues,echo=FALSE,eval=FALSE}
+# test heterocedasticidad
+bartlett.test(formula = despues~grupo,data = dat.polipos)
+# --> hay homogeneidad de varianzas entre los grupos control y tratamiento
+```
+
+```{r ANOVA_despues,echo=FALSE}
+# ANOVA
+despues.aov<-summary(aov(formula = despues~grupo,data = dat.polipos))
+kable(despues.aov[[1]],caption = "ANOVA control-tratamiento",digits = 3)
+```
+
+donde:
+
++ `Sum Sq` es la suma de cuadrados entre grupos $SSB$ (`grupo`)  
+y la suma de cuadrados dentro de los grupos $SSE$ (`residuals`)
++ `Mean Sq` es la variabilidad entre grupos $MS_B$ (`grupo`)  
+y la variabilidad dentro de los grupos $MSE$ (`residuals`)
++ `F value` es el $\text{F-ratio}$ (`grupo`)
++ `Pr(>F)` es el p-value (`grupo`)
+
+$\text{F-ratio}>1$ es significativo $\rightarrow MS_B>MSE \rightarrow$ se rechaza $H_0$
+$\\$
+
+**Comparación de medias:** t-test $\rightarrow t=\frac{\bar{x_t}-\bar{x_c}}{SE_\text{diff}}$
+
+donde $SE_\text{diff}=\sqrt{\frac{S^2_c}{n_c}+\frac{S^2_t}{n_t}}=\frac{S_c}{\sqrt{n_c}}+\frac{S_t}{\sqrt{n_t}}$ 
+$\\$
+
+```{r t_test_despues,echo=FALSE}
+# t-test
+despues.lm<-summary(lm(formula = despues~grupo,data = dat.polipos))
+kable(despues.lm$coefficients,
+      caption = "t-test control-tratamiento",
+      digits = 3)
+```
+
+```{r t_test_alt_despues,echo=FALSE,eval=FALSE}
+# t-test alt.
+with(dat.polipos,t.test(despues~grupo,var.equal = T))
+```
+
+donde:
+
++ `Estimate` es la estimación de la media $\bar{x_c}$ (`Intercept`)  
+y la estimación de la diferencia entre las medias $\bar{x_t}-\bar{x_c}$ (`grupotratado`)
++ `Std.Error` es el error estándar de la media $SE_{\bar{x_c}}$ (`Intercept`)  
+y el error estándar de la diferencia entre las medias $SE_\text{diff}$ (`grupotratado`)
++ `|t-value|`$=t$ (`grupotratado`) 
++ `Pr(>|t|)` es el p-value (`grupotratado`)
+$\\$
+
+$Pr(>|t|)$ es significativo $\rightarrow \bar{x_c}-\bar{x_t}\neq0 \rightarrow$ se rechaza $H_0$
+
+### b) Segunda aproximación: análisis de variable `efecto <- antes-despues`
+
+```{r new_data,echo=FALSE}
+# datos efecto
+dat.polipos_effect<-data.frame(dat.polipos,efecto=dat.polipos$antes-dat.polipos$despues)
+kable(dat.polipos_effect,caption = "Datos del ensayo 2")
+```
+
++ **Análisis descriptivo**
+
+```{r sumario_efecto,echo=FALSE}
+# sumario
+sum_e<-summaryBy(formula = efecto~grupo,data = dat.polipos_effect,FUN = summary)
+    # + n
+n_e<-summaryBy(formula = efecto~grupo,data = dat.polipos_effect,FUN = length)[,2]
+    # + sd y se
+sd_e<-summaryBy(formula = efecto~grupo,data = dat.polipos_effect,FUN = sd)[,2]
+se_e<-sd_e/sqrt(n_e)
+
+# tabla
+sum_e_ns<-data.frame(sum_e[,1],n_e,sum_e[,2:7],sd_e,se_e)
+sum_e_names<-c("grupo","n","Min.","1st Qu.","Median","Mean","3rd Qu.","Max.","S","SE")
+kable(sum_e_ns,col.names = sum_e_names,
+      caption = "Sumario del efecto por grupo de tratamiento",
+      digits = 3)
+```
+
+```{r plot_antes_despues,echo=FALSE,fig.height=3,fig.width=6}
+# plot
+ggplot(data = dat.polipos,aes(x = antes,y = despues,colour = grupo,shape = grupo))+
+    geom_point(size=3)+
+    labs(title="Número de pólipos antes / después de tratamiento\n",
+         x="\nantes",y="después\n")+
+    theme(plot.title=element_text(size=10),
+          axis.title=element_text(size=8),
+          legend.title=element_text(size=8))
+```
+
+Para mismos valores de `antes`, el grupo control tiene valores mayores de `despues` $\rightarrow$ parece haber diferencias en el efecto entre los dos grupos de tratamiento.
+
++ **Análisis estadístico: ¿es la media del `efecto` significativamente diferente entre los grupos `control` y `tratado`?**
+
+$H_0:\mu_c=\mu_t \ ; \ H_1:\mu_c\neq\mu_t$
+$\\$
+
+**ANOVA:** F-test $\rightarrow F=\frac{MS_B}{MSE}$
+$\\$
+
+```{r test_hom_var_efecto,echo=FALSE,eval=FALSE}
+# test heterocedasticidad
+bartlett.test(formula = efecto~grupo,data = dat.polipos_effect)
+# --> hay homogeneidad de varianzas entre los grupos control y tratamiento
+```
+
+```{r ANOVA_efecto,echo=FALSE}
+# ANOVA
+efecto.aov<-summary(aov(formula = efecto~grupo,data = dat.polipos_effect))
+kable(efecto.aov[[1]],caption = "ANOVA control-tratamiento",digits = 3)
+```
+
+$\text{F-ratio}>1$ es significativo $\rightarrow MS_B>MSE \rightarrow$ se rechaza $H_0$
+$\\$
+
+**Comparación de medias:** t-test $\rightarrow t=\frac{\bar{x_t}-\bar{x_c}}{SE_\text{diff}}$
+$\\$
+
+```{r t_test_efecto,echo=FALSE}
+# t-test
+efecto.lm<-summary(lm(formula = efecto~grupo,data = dat.polipos_effect))
+kable(efecto.lm$coefficients,
+      caption = "t-test control-tratamiento",
+      digits = 3)
+```
+
+$Pr(>|t|)$ es significativo $\rightarrow \bar{x_c}-\bar{x_t}\neq0 \rightarrow$ se rechaza $H_0$
+
+\pagebreak
+
+### c) Tercera aproximación: ANCOVA (covariable `antes`)
+
++ **Análisis descriptivo**  
+
+$\text{despues}_c=\alpha_c+\beta_c * \text{antes}_c$
+
+$\text{despues}_t=\alpha_t+\beta_t * \text{antes}_t$
+$\\$
+
+```{r grupos_fits,echo=FALSE}
+# ajuste grupo control
+cont.lm<-with(dat.polipos,lm(despues[grupo=="control"]~antes[grupo=="control"]))
+cont.coefs<-cont.lm$coefficients
+
+# ajuste grupo tratado
+trat.lm<-with(dat.polipos,lm(despues[grupo=="tratado"]~antes[grupo=="tratado"]))
+trat.coefs<-trat.lm$coefficients
+
+grupo.coefs<-data.frame(grupo=c("control","tratado"),
+                        Intercept=c(cont.coefs[1],trat.coefs[1]),
+                        slope=c(cont.coefs[2],trat.coefs[2]))
+```
+
+```{r plot_fits,echo=FALSE,fig.height=4,fig.width=6}
+# plot
+ggplot(data = dat.polipos,aes(x = antes,y = despues,colour = grupo,shape = grupo))+
+    geom_point(size=3)+
+    labs(title="Rectas de regresión grupo control y grupo tratado\n",
+         x="\nantes",y="después\n")+
+    theme(plot.title=element_text(size=10),
+          axis.title=element_text(size=8),
+          legend.title=element_text(size=8))+
+    geom_abline(data=grupo.coefs,aes(intercept=Intercept,slope=slope,colour=grupo))
+```
+
+El intercept $\alpha$ es diferente para cada grupo $\rightarrow$ el grupo de tratamiento parece tener efecto sobre la variable respuesta `despues`, donde el grupo control presentaría mayor número de pólipos al año de tratamiento que el grupo tratado.
+
+La pendiente $\beta$ es similar entre ambos grupos $\rightarrow$ el efecto de la covariable `antes` sobre la variable respuesta `despues` parece ser similar para ambos grupos, y no parece haber interacción entre la covariable y el grupo.
+
++ **Análisis estadístico**
+
+**Ajuste de modelo completo con interacción:**
+$\\$
+
+$\text{despues}=\alpha_{grupo}+\beta * \text{antes}+\alpha_{grupo}\beta * \text{antes}$
+$\\$
+
+```{r ancova_max,echo=FALSE}
+# ajuste
+pol.lm_max<-with(dat.polipos,lm(despues~grupo*antes))
+ancova<-summary(pol.lm_max)
+# summary
+kable(ancova$coefficients,
+      caption = "ANCOVA interacción",
+      digits = 3)
+```
+
+donde:
+
++ `Intercept`: Intercept 1 $\alpha_{grupo=control}+\beta*(\text{antes=x})+\alpha_{grupo=control}\beta*(\text{antes=x})$
+
++ `grupotratado`: diferencia Intercept 2 $\alpha_{grupo=tratado}$ - Intercept 1
+
++ `antes`: pendiente 1 $\beta*(\text{antes=x+1})$
+
++ `grupotratado:antes`: diferencia pendiente 2 $\beta*[\text{(grupo=tratado):(antes=x+1)}]$ - pendiente 1
+
+En presencia del término de interacción, los 'efectos principales' son efectos condicionales (hay tantos efectos `grupotratado` como niveles `antes`, y tantos efectos `antes` como niveles `grupotratado`).
+
+El efecto debido al término de interacción `grupotratado:antes` no es significativo $\rightarrow$ debe eliminarse del modelo.
+$\\$
+
+Suma de cuadrados de tipo I (secuencial):
+
+```{r SSI_1_max,echo=FALSE}
+kable(anova(pol.lm_max),
+      caption = "Tabla ANOVA interacción (A,B,AB)",
+      digits = 3)
+```
+
+donde `grupo`: $SS(B)$, `antes`: $SS(A|B)$, `grupo:antes`: $SS(A*B|A,B)$
+$\\$
+
+```{r SSI_2_max,echo=FALSE}
+pol.lm_max2<-with(dat.polipos,lm(despues~antes*grupo))
+kable(anova(pol.lm_max2),
+      caption = "Tabla ANOVA interacción (B,A,AB)",
+      digits = 3)
+```
+
+donde: `antes`: $SS(A)$, `grupo`: $SS(B|A)$, `antes:grupo`: $SS(A*B|A,B)$
+$\\$
+
+La variabilidad debida a la interacción `grupo:antes` no es significativa $\rightarrow$ análisis de efectos principales.
+
+\pagebreak
+
+**Ajuste de modelo sin interacción:**
+$\\$
+
+$\text{despues}=\alpha_{grupo}+\beta * \text{antes}$
+$\\$
+
+```{r ancova_main,echo=FALSE}
+# ajuste
+pol.lm_main<-with(dat.polipos,lm(despues~grupo+antes))
+ancova2<-summary(pol.lm_main)
+# summary
+kable(ancova2$coefficients,
+      caption = "ANCOVA efectos principales",
+      digits = 3)
+```
+
+donde:
+
++ `Intercept`: Intercept 1 $\alpha_{grupo=control}+\beta*(\text{antes=x})$
+
++ `grupotratado`: diferencia Intercept 2 $\alpha_{grupo=tratado}$ - Intercept 1
+
++ `antes`: pendiente $\beta*(\text{antes=x+1})$
+
+El factor `grupo` y la covariable `antes` son significativos.
+$\\$
+
+Suma de cuadrados de tipo II:
+
+```{r SSII_main1,echo=FALSE}
+kable(anova(pol.lm_main),
+      caption = "Tabla ANOVA efectos principales (A,B)",
+      digits = 3)
+```
+
+donde `antes`: $SS(B|A)$
+$\\$
+
+```{r SSII_main2,echo=FALSE}
+pol.lm_main2<-with(dat.polipos,lm(despues~antes+grupo))
+kable(anova(pol.lm_main2),
+      caption = "Tabla ANOVA efectos principales (B,A)",
+      digits = 3)
+```
+
+donde `grupo`: $SS(A|B)$
+$\\$
+
+```{r SSII_main,echo=FALSE}
+kable(drop1(pol.lm_main, ~ ., test="F"),caption = "SSII efectos principales")
+```
+
+donde `grupo`: $SS(A|B)$ y `antes`: $SS(B|A)$
+$\\$
+
+Ambos efectos principales `grupo` y `antes` son significativos en presencia del otro.
+$\\$
+```{r drop1_ancova,echo=FALSE,eval=FALSE}
+step(pol.lm_max)
+```
+
+El modelo mínimo adecuado es: $\text{despues}=\alpha_{grupo}+\beta * \text{antes}$
+$\\$
+
+```{r ancova_main_IC,echo=FALSE}
+# fitted data con IC
+IC.fit<-predict(pol.lm_main,interval = "confidence") # level = 0.95 por defecto
+dat.pol.fit<-data.frame(dat.polipos,fit=pol.lm_main$fitted.values,
+                        IC_lwr=IC.fit[,2],IC_upr=IC.fit[,3])
+
+# IC
+dat.pol.cont.IC<-dat.pol.fit[dat.pol.fit$grupo=="control",]
+dat.pol.cont.IC2<-dat.pol.cont.IC[order(dat.pol.cont.IC$fit),]
+dat.pol.trat.IC<-rbind(dat.pol.fit[dat.pol.fit$grupo=="tratado",],rep(NA,6))
+dat.pol.trat.IC2<-dat.pol.trat.IC[order(dat.pol.trat.IC$fit,na.last = T),]
+dat.pol.IC<-cbind(dat.pol.cont.IC2,dat.pol.trat.IC2)
+row.names(dat.pol.IC)<-NULL
+kable(dat.pol.IC,caption="Ajuste modelo final - IC 95%",digits=3)
+```
+
+```{r ancova_main_plot,echo=FALSE,fig.height=3,fig.width=6}
+# plot
+ggplot(data = dat.pol.fit,aes(x = antes,y = despues,colour = grupo,shape = grupo))+
+    geom_point(size=3)+
+    labs(title="",x="\nantes",y="después\n")+
+    theme(axis.title=element_text(size=8),
+          legend.title=element_text(size=8))+
+    geom_line(aes(x=antes,y=fit))+
+    geom_ribbon(aes(y=fit,ymin=IC_lwr,ymax=IC_upr,fill=grupo),alpha=0.2,linetype="dashed")
+```
+
+
+\pagebreak
+
+## 2. Se va a realizar un ensayo algo más grande en el que se va a utilizar un nivel de significatividad $\alpha$ = 0.05. Se desea obtener una potencia del 95% para detectar diferencias de medias (en escala logarítmica) de 0.4 unidades. ¿Cuántos pacientes por grupo se necesitan? ¿Variaría mucho el tamaño muestral si en lugar de utilizar un estimador puntual de la varianza, común a ambos grupos, se utilizara el extremo superior del intervalo de confianza al 80% sobre esa varianza desconocida?
+
+* Utilizando estimador puntual de varianza común
+
+$\alpha=0.05$  
+$\text{potencia}=0.95$  
+$\text{detect.} \ \bar{x}_\text{t.despues}-\bar{x}_\text{c.despues}=0.4$  
+
+$n_c=10$  
+$n_t=9$  
+$S^2_c=0.19$  
+$S^2_t=0.21$  
+
+$S_{x_cx_t} = \sqrt{\frac{(n_c-1)s_{x_c}^2+(n_t-1)s_{x_t}^2}{n_c+n_t-2}}=0.45$
+
+```{r parametros,echo=FALSE,results='hide'}
+# desviación típica común
+nc<-10
+nt<-9
+var_c<-with(dat.polipos,var(despues[grupo=="control"])); var_c
+var_t<-with(dat.polipos,var(despues[grupo=="tratado"])); var_t
+sigm<-sqrt(((nc-1)*var_c+(nt-1)*var_t)/(nc+nt-2)); sigm
+```
+
+```{r N,echo=FALSE,results='hide'}
+# tamaño muestral
+power.t.test(delta = 0.4,sd = sigm,sig.level = 0.05,power = 0.95) 
+# (alternative="two.sided" por defecto)
+```
+
+```
+     Two-sample t test power calculation 
+
+              n = 33.51421
+          delta = 0.4
+             sd = 0.447458
+      sig.level = 0.05
+          power = 0.95
+    alternative = two.sided
+
+NOTE: n is number in *each* group
+```
+Tamaño muestral necesario para cada grupo $N = 34$.
+$\\$
+
+* Utilizando extremo superior del intervalo de confianza al 80% sobre varianza desconocida
+
+*preguntar*
+
+\pagebreak
+
+## Informe final
+
+blablabla
+
+\pagebreak
+
+## ANEXO I
+
+### Datos
+
+```{r datos_ANEXO,eval=FALSE}
+grupo <- as.factor(c(1,0,1,0,1,0,0,0,1,1,0,0,0,1,0,0,1,1,1))
+levels(grupo) <- c('control','tratado')
+dat.polipos <- data.frame(grupo= grupo,
+                          antes = c(0.84510,0.69897,1.36173,1.54407,1.04139,1.07918, 0.84510,
+                                    2.50243,2.20412,0.90309,1.30103,1.04139,1.38021,1.53148,
+                                    1.73239,1.47712,1.00000, 1.30103,1.07918),
+                          despues=c(0.60206,1.41497,1.20412,1.60206,1.14613,1.20412,1.04139,
+                                    2.63749,1.41497,0.84510,1.65321,1.50515,1.90309,1.53148,
+                                    1.57978,1.75587,0.84510,0.00000,0.90309))
+```
+
+```{r datos_tabla_ANEXO,eval=FALSE}
+# tabla datos
+kable(dat.polipos, caption = "Datos del ensayo")
+```
+
+```{r data_summary_ANEXO,eval=FALSE}
+# datos long-format
+dat.pol_lf<-melt(data = dat.polipos,measure.vars = c("antes","despues"))
+
+# sumario
+sum1<-summary(dat.pol_lf)
+    # para sustituir NAs por "" en grupo y variable en `kable`:
+sum1<-data.frame(grupo=c(sum1[1:2,1],rep("",4)),
+                 variable=c(sum1[1:2,2],rep("",4)),
+                 value=sum1[,3]) 
+kable(sum1,caption = "Sumario")
+
+# sumario antes/después
+sum_names<-c("grupo","Min.","1st Qu.","Median","Mean","3rd Qu.","Max.")
+kable(summaryBy(formula = value~variable,data = dat.pol_lf,FUN = summary),
+      caption = "Sumario antes/después",
+      col.names = sum_names,
+      digits = 3)
+
+# sumario grupo
+kable(summaryBy(formula = value~grupo,data = dat.pol_lf,FUN = summary),
+      caption = "Sumario por grupo de tratamiento",
+      col.names = sum_names,
+      digits = 3)
+
+# sumario grupo antes/después
+sum2<-summaryBy(formula = value~grupo*variable,data = dat.pol_lf,FUN = summary)
+    # summaryBy no tiene `n`:
+n<-summaryBy(formula = value~grupo*variable,data = dat.pol_lf,FUN = length)
+sum2_n<-data.frame(sum2[,1:2],n$value.length,sum2[,3:8])
+sum_names_n<-c("grupo","variable","n","Min.","1st Qu.","Median","Mean","3rd Qu.","Max.")
+kable(sum2_n,
+      caption = "Sumario por grupo de tratamiento antes/después",
+      col.names = sum_names_n,
+      digits = 3)
+```
+
+### a) Primera aproximación
+
+* Análisis descriptivo
+
+```{r sum_despues_grupo_ANEXO,eval=FALSE}
+# sumario
+sum_d<-summaryBy(formula = despues~grupo,data = dat.polipos,FUN = summary)
+    # + n:
+n_d<-summaryBy(formula = despues~grupo,data = dat.polipos,FUN = length)[,2]
+    # + s y se
+sd_despues<-summaryBy(formula = despues~grupo,data = dat.polipos,FUN = sd)[,2]
+se_despues<-sd_despues/sqrt(n_d)
+# tabla
+sum_d_ns<-data.frame(sum_d[,1],n_d,sum_d[,2:7],sd_despues,se_despues)
+sum_d_names<-c("grupo","n","Min.","1st Qu.","Median","Mean","3rd Qu.","Max.","S","SE")
+kable(sum_d_ns,col.names = sum_d_names,
+      caption = "Sumario por grupo de tratamiento antes/después",
+      digits = 3)
+```
+
+```{r boxplot_despues_grupo_ANEXO,eval=FALSE}
+# boxplot
+ggplot(data = dat.polipos, aes(x = grupo, y=despues, fill=grupo))+
+    geom_boxplot()+
+    stat_summary(fun.y="mean", geom="point", shape=4, size=3)+
+    labs(x="",y="",title="Número de pólipos al año de tratamiento\n")+
+    theme(plot.title=element_text(size=10))+
+    scale_fill_discrete(guide=F)
+```
+
+* Análisis estadístico
+
+```{r test_hom_var_despues_ANEXO}
+# test heterocedasticidad
+bartlett.test(formula = despues~grupo,data = dat.polipos)
+# --> hay homogeneidad de varianzas entre los grupos control y tratamiento
+```
+
+```{r ANOVA_despues_ANEXO,eval=FALSE}
+# ANOVA
+despues.aov<-summary(aov(formula = despues~grupo,data = dat.polipos))
+kable(despues.aov[[1]],caption = "ANOVA control-tratamiento",digits = 3)
+```
+
+```{r t_test_despues_ANEXO,eval=FALSE}
+# t-test
+despues.lm<-summary(lm(formula = despues~grupo,data = dat.polipos))
+kable(despues.lm$coefficients,
+      caption = "t-test control-tratamiento",
+      digits = 3)
+```
+
+\pagebreak
+
+### b) Segunda aproximación
+
+```{r new_data_ANEXO,eval=FALSE}
+# datos efecto
+dat.polipos_effect<-data.frame(dat.polipos,efecto=dat.polipos$antes-dat.polipos$despues)
+kable(dat.polipos_effect,caption = "Datos del ensayo 2")
+```
+
+* Análisis descriptivo
+
+```{r sumario_efecto_ANEXO,eval=FALSE}
+# sumario
+sum_e<-summaryBy(formula = efecto~grupo,data = dat.polipos_effect,FUN = summary)
+    # + n
+n_e<-summaryBy(formula = efecto~grupo,data = dat.polipos_effect,FUN = length)[,2]
+    # + sd y se
+sd_e<-summaryBy(formula = efecto~grupo,data = dat.polipos_effect,FUN = sd)[,2]
+se_e<-sd_e/sqrt(n_e)
+
+# tabla
+sum_e_ns<-data.frame(sum_e[,1],n_e,sum_e[,2:7],sd_e,se_e)
+sum_e_names<-c("grupo","n","Min.","1st Qu.","Median","Mean","3rd Qu.","Max.","S","SE")
+kable(sum_e_ns,col.names = sum_e_names,
+      caption = "Sumario del efecto por grupo de tratamiento",
+      digits = 3)
+```
+
+```{r plot_antes_despues_ANEXO,eval=FALSE}
+# plot
+ggplot(data = dat.polipos,aes(x = antes,y = despues,colour = grupo,shape = grupo))+
+    geom_point(size=3)+
+    labs(title="Número de pólipos antes / después de tratamiento\n",
+         x="\nantes",y="después\n")+
+    theme(plot.title=element_text(size=10),
+          axis.title=element_text(size=8),
+          legend.title=element_text(size=8))
+```
+
+* Análisis estadístico
+
+```{r test_hom_var_efecto_ANEXO}
+# test heterocedasticidad
+bartlett.test(formula = efecto~grupo,data = dat.polipos_effect)
+# --> hay homogeneidad de varianzas entre los grupos control y tratamiento
+```
+
+```{r ANOVA_efecto_ANEXO,eval=FALSE}
+# ANOVA
+efecto.aov<-summary(aov(formula = efecto~grupo,data = dat.polipos_effect))
+kable(efecto.aov[[1]],caption = "ANOVA control-tratamiento",digits = 3)
+```
+
+```{r t_test_efecto_ANEXO,eval=FALSE}
+# t-test
+efecto.lm<-summary(lm(formula = efecto~grupo,data = dat.polipos_effect))
+kable(efecto.lm$coefficients,
+      caption = "t-test control-tratamiento",
+      digits = 3)
+```
+
+### c) Tercera aproximación
+
+* Análisis descriptivo
+
+```{r grupos_fits_ANEXO,eval=FALSE}
+# ajuste grupo control
+cont.lm<-with(dat.polipos,lm(despues[grupo=="control"]~antes[grupo=="control"]))
+cont.coefs<-cont.lm$coefficients
+
+# ajuste grupo tratado
+trat.lm<-with(dat.polipos,lm(despues[grupo=="tratado"]~antes[grupo=="tratado"]))
+trat.coefs<-trat.lm$coefficients
+
+grupo.coefs<-data.frame(grupo=c("control","tratado"),
+                        Intercept=c(cont.coefs[1],trat.coefs[1]),
+                        slope=c(cont.coefs[2],trat.coefs[2]))
+```
+
+```{r plot_fits_ANEXO,eval=FALSE}
+# plot
+ggplot(data = dat.polipos,aes(x = antes,y = despues,colour = grupo,shape = grupo))+
+    geom_point(size=3)+
+    labs(title="Rectas de regresión grupo control y grupo tratado\n",
+         x="\nantes",y="después\n")+
+    theme(plot.title=element_text(size=10),
+          axis.title=element_text(size=8),
+          legend.title=element_text(size=8))+
+    geom_abline(data=grupo.coefs,aes(intercept=Intercept,slope=slope,colour=grupo))
+```
+
+* Análisis estadístico
+
+```{r ancova_max_ANEXO,eval=FALSE}
+# ajuste
+pol.lm_max<-with(dat.polipos,lm(despues~grupo*antes))
+ancova<-summary(pol.lm_max)
+# summary
+kable(ancova$coefficients,
+      caption = "ANCOVA interacción",
+      digits = 3)
+```
+
+```{r SSI_1_max_ANEXO,eval=FALSE}
+# SSI (A,B,AB)
+kable(anova(pol.lm_max),
+      caption = "Tabla ANOVA interacción (A,B,AB)",
+      digits = 3)
+```
+
+```{r SSI_2_max_ANEXO,eval=FALSE}
+# SSI (B,A,AB)
+pol.lm_max2<-with(dat.polipos,lm(despues~antes*grupo))
+kable(anova(pol.lm_max2),
+      caption = "Tabla ANOVA interacción (B,A,AB)",
+      digits = 3)
+```
+
+```{r SSII_main1_ANEXO,eval=FALSE}
+# SSII (A,B)
+kable(anova(pol.lm_main),
+      caption = "Tabla ANOVA efectos principales (A,B)",
+      digits = 3)
+```
+
+```{r SSII_main2_ANEXO,eval=FALSE}
+# SSII (B,A)
+pol.lm_main2<-with(dat.polipos,lm(despues~antes+grupo))
+kable(anova(pol.lm_main2),
+      caption = "Tabla ANOVA efectos principales (B,A)",
+      digits = 3)
+```
+
+```{r SSII_main_ANEXO,eval=FALSE}
+# SSII
+kable(drop1(pol.lm_main, ~ ., test="F"),caption = "SSII efectos principales")
+```
+
+```{r drop1_ancova_ANEXO}
+# modelo mínimo adecuado
+step(pol.lm_max)
+```
+
+```{r ancova_main_IC_ANEXO,eval=FALSE}
+# fitted data con IC
+IC.fit<-predict(pol.lm_main,interval = "confidence") # level = 0.95 por defecto
+dat.pol.fit<-data.frame(dat.polipos,fit=pol.lm_main$fitted.values,
+                        IC_lwr=IC.fit[,2],IC_upr=IC.fit[,3])
+
+# IC tabla
+dat.pol.cont.IC<-dat.pol.fit[dat.pol.fit$grupo=="control",]
+dat.pol.cont.IC2<-dat.pol.cont.IC[order(dat.pol.cont.IC$fit),]
+dat.pol.trat.IC<-rbind(dat.pol.fit[dat.pol.fit$grupo=="tratado",],rep(NA,6))
+dat.pol.trat.IC2<-dat.pol.trat.IC[order(dat.pol.trat.IC$fit,na.last = T),]
+dat.pol.IC<-cbind(dat.pol.cont.IC2,dat.pol.trat.IC2)
+row.names(dat.pol.IC)<-NULL
+kable(dat.pol.IC,caption="Ajuste modelo final - IC 95%",digits=3)
+```
+
+```{r ancova_main_plot_ANEXO,eval=FALSE}
+# plot
+ggplot(data = dat.pol.fit,aes(x = antes,y = despues,colour = grupo,shape = grupo))+
+    geom_point(size=3)+
+    labs(title="",x="\nantes",y="después\n")+
+    theme(axis.title=element_text(size=8),
+          legend.title=element_text(size=8))+
+    geom_line(aes(x=antes,y=fit))+
+    geom_ribbon(aes(y=fit,ymin=IC_lwr,ymax=IC_upr,fill=grupo),alpha=0.2,linetype="dashed")
+```
+
+### Tamaño muestral
+
+* Estimador varianza
+
+```{r parametros_ANEXO,eval=FALSE}
+# estimador desviación típica común
+nc<-10
+nt<-9
+var_c<-with(dat.polipos,var(despues[grupo=="control"])); var_c
+var_t<-with(dat.polipos,var(despues[grupo=="tratado"])); var_t
+sigm<-sqrt(((nc-1)*var_c+(nt-1)*var_t)/(nc+nt-2)); sigm
+```
+
+```{r N_ANEXO,eval=FALSE}
+# tamaño muestral
+power.t.test(delta = 0.4,sd = sigm,sig.level = 0.05,power = 0.95) 
+# (alternative="two.sided" por defecto)
+```
+
+* IC
+
+\pagebreak
+
+# SEGUNDO ENSAYO
+
+Vamos a utilizar los datos `linfoma.dat` ya estudiados en la tarea sobre supervivencia. Ahora vamos a suponer que el objetivo principal del ensayo era la supervivencia a un horizonte de 1, no las curvas de supervivencia.
+
+La variable respuesta, por tanto, será si el tiempo `B3TODEATH` es mayor o menor que 1. Además, al comparar la probabilidad de ‘tiempo de supervivencia mayor que uno’ en los dos grupos, queremos calcular los odds ratio a favor del grupo sin radiación, por lo que este grupo debe tener un código mayor que el otro grupo.
+
+Para conseguir la nueva variable respuesta y la nueva codificación de grupos, vamos a sustituir las variables originales `B3TODEATH` y `GROUP` por las nuevas variables `efectivo` y `grupo`.
+$\\$
+
+```{r datos_linfoma,echo=FALSE}
+# datos
+dat <- read.table("linfoma.dat",header=T)
+efectivo <- as.factor(dat$B3TODEATH>1)
+grupo <- as.factor(2-dat$GROUP)
+levels(grupo) <- c('Si.Rad','No.Rad')
+sexo<-as.factor(dat$SEX)
+levels(sexo)<-c("Hombre","Mujer")
+edad<-as.factor(dat$AGE60)
+levels(edad)<-c("<60",">60")
+datos <-data.frame(efectivo,grupo,sexo,edad,kps=dat$KPS.PRE.)
+
+kable(head(datos),caption = "head(datos)",row.names = length(head(datos)))
+kable(tail(datos),caption = "tail(datos)")
+```
+
+```{r sumario,echo=FALSE}
+# sumario
+sum.dat<-summary(datos)
+    # para sustituir NAs por "" en factores en `kable`:
+sum.datos<-data.frame(efectivo=c(sum.dat[1:2,1],rep("",4)),
+                 grupo=c(sum.dat[1:2,2],rep("",4)),
+                 sexo=c(sum.dat[1:2,3],rep("",4)),
+                 edad=c(sum.dat[1:2,4],rep("",4)),
+                 kps=sum.dat[,5])
+kable(sum.datos,caption = "Sumario")
+```
+
+**Objetivos del análisis estadístico:**
+
+## 1. Análisis estadístico de los datos. ¿Tiene algún efecto el tratamiento en los resultados? ¿Influyen las covariables?
+
+* Análisis descriptivo
+
+```{r sum_datos_grupos,echo=FALSE}
+# sumario por grupos
+sum.dat.g<-summaryBy(data = datos,formula = efectivo~grupo*efectivo,FUN = length)
+colnames(sum.dat.g)<-c("grupo","efectivo","n")
+
+odds.dat.g<-with(sum.dat.g,c(n[1]/n[2],n[2]/n[1],n[3]/n[4],n[4]/n[3]))
+sum.datos.g<-data.frame(sum.dat.g,odds=odds.dat.g)
+```
+
+```{r hist_datos_grupos,echo=FALSE,fig.width=10}
+# histogramas por grupos
+p1<-ggplot(data = datos,aes(x=grupo,fill=efectivo))+
+    geom_histogram(stat="bin",position="dodge")+
+    labs(x="",y="número de casos\n",title="")+
+    scale_fill_discrete(breaks=c("FALSE","TRUE"),name="",labels=c("No efectivo","Efectivo"))+
+    theme(plot.title=element_text(size=15),
+          axis.title=element_text(size=15),
+          legend.text=element_text(size=13))
+
+p2<-ggplot(data = sum.datos.g[c(2,4),],aes(x=grupo,y=odds,fill=grupo))+
+    geom_histogram(stat="identity")+
+    labs(x="",y="odds efectivo / no efectivo\n",title="")+
+    scale_fill_discrete(breaks=c("Si.Rad","No.Rad"),name="",
+                        labels=c("Con radiación","Sin radiación"))+
+    theme(plot.title=element_text(size=15),
+          axis.title=element_text(size=15),
+          legend.text=element_text(size=13))
+
+grid.arrange(p1,p2,ncol=2,
+             main = textGrob("\nEfectividad del tratamiento por grupos",gp=gpar(fontsize=17)))
+```
+
+$\\$
+
+```{r sum_dg_table,echo=FALSE}
+# sumario por grupos
+kable(sum.datos.g,caption = "Efectividad del tratamiento por grupos",digits = 3)
+```
+
+El tratamiento sin radiación parece ser más efectivo que el tratamiento con radiación.
+
+\pagebreak
+
+* Análisis estadístico
+
+**Comparación de frecuencias observadas-esperadas: Ji-cuadrado**
+$\\$
+
+$H_0: \text{las variables 'grupo' y 'efectivo' son independientes}$
+
+$H_1: \text{las variables 'grupo' y 'efectivo' no son independientes}$
+$\\$
+
+```{r tabla_cont,echo=FALSE}
+datos.table<-with(datos,table(grupo,efectivo))
+kable(datos.table,digits=3,caption="Tabla de contingencia (frecuencias observadas)")
+```
+
+```{r,echo=FALSE,eval=FALSE}
+library(vcd)
+mosaic(datos.table)
+```
+
+$\chi^2 = \sum_{i=1}^{n} \frac{(O_i - E_i)^2}{E_i}$
+
+$\\$
+donde:
+
+$O_i$: frecuencia observada
+
+$E_i$: frecuencia esperada (si $H_0$ es cierta) 
+$\frac{\text{nº casos nivel 'grupo' * nº casos nivel 'efectivo'}}{\text{total casos}}$
+
+$n$: número de celdas
+$\\$
+
+```{r chi_test,echo=FALSE}
+result<-chisq.test(datos.table,correct = F)
+kable(result$expected,caption = "Tabla de contingencia (frecuencias esperadas)",digits=3)
+kable(data.frame(statistic=result$statistic,df=result$parameter,p.value=result$p.value),
+      caption="Pearson's Chi-squared test",digits=3)
+```
+
+$p-valor > \alpha=0.05 \rightarrow$ no se rechazaría $H_0$
+
+\pagebreak
+
+**Comparación de dos proporciones: ARD, RR, OR, NNT**
+$\\$
+
+```{r tabla,echo=FALSE}
+tabla <- cbind(rbind(datos.table,colSums(datos.table)),
+               rowSums(rbind(datos.table,colSums(datos.table))))
+tabla.abcd<-tabla
+tabla.abcd[1:9]<-c("a","c","a+c","b","d","b+d","a+b","c+d","a+b+c+d")
+kable(tabla)
+kable(tabla.abcd)
+```
+
+Siendo el riesgo la no efectividad, *T* radiación, y *C* no radiación:
+
++ $AR$: riesgo absoluto (proporciones) $\pi_T=\frac{a}{a+b}, \ \pi_C=\frac{c}{c+d}$
+
++ $ARD$: diferencia de riesgos $\pi_C-\pi_C$
+
++ $RR$: cociente de riesgos $\frac{\pi_T}{\pi_C}$
+
++ $O$: odds $\frac{\pi_\text{no ef.}}{\pi_\text{ef.}} \rightarrow O_T = \frac{a}{b}, \ O_C = \frac{c}{d}$
+
++ $OR$: odds ratio $\frac{O_T}{O_C}$
+
++ $NNT$: número que se necesita tratar $\frac{1}{\text{ARD}}$
+$\\$
+
+```{r IC_prop,echo=FALSE}
+IC.proporciones <- function(tabla,conf=0.95){
+     # tabla es una matriz de contingencia 2*2. Comparamos la proporción de la primera fila
+     #     con la de la segunda.
+     # conf es el nivel de confianza del intervalo.
+     # Devuelve estimación puntual e IC para:
+     #   1. diferencia de proporciones    ARD
+     #   2. riesgo relativo               RR
+     #   3. odds ratio                    OR
+     #   4. Número que se necesita tratar NNT
+              ta <- cbind(rbind(tabla,colSums(tabla)),rowSums(rbind(tabla,colSums(tabla))))
+              medidas <- c(ta[1,1]/ta[1,3]-ta[2,1]/ta[2,3],ta[1,1]/ta[1,3]/ta[2,1]*ta[2,3],
+                           ta[1,1]*ta[2,2]/ta[1,2]/ta[2,1],1/(ta[1,1]/ta[1,3]-ta[2,1]/ta[2,3]))
+              names(medidas) <- c('ARD','RR','OR','NNT')
+              cuantil <- qnorm((1+conf)/2,0,1)
+                   # IC de la primera proporción (método 'score')
+              a1 <- 1+cuantil^2/ta[1,3]; a2 <- ta[1,1]/ta[1,3]+cuantil^2/ta[1,3]/2; a3 <- a1*(ta[1,1]/ta[1,3])^2
+              ic.p1 <- (a2+c(-1,1)*sqrt(a2^2-a3))/a1
+                   # IC de la segunda proporción (método 'score')
+              a1 <- 1+cuantil^2/ta[2,3]; a2 <- ta[2,1]/ta[2,3]+cuantil^2/ta[2,3]/2; a3 <- a1*(ta[2,1]/ta[2,3])^2
+              ic.p2 <- (a2+c(-1,1)*sqrt(a2^2-a3))/a1
+                   # IC de absolute risk difference, ARD (método de Newcomb)
+              lo <- sqrt((ta[1,1]/ta[1,3] - ic.p1[1])^2 + (ic.p2[2]-ta[2,1]/ta[2,3])^2)
+              up <- sqrt((ta[2,1]/ta[2,3] - ic.p2[1])^2 + (ic.p1[2]-ta[1,1]/ta[1,3])^2)
+              ic.ard <- ta[1,1]/ta[1,3] - ta[2,1]/ta[2,3] + c(-lo,up)
+                   # IC de relative risk, RR
+              se.log.rr <- sqrt(1/ta[1,1]-1/ta[1,3]+1/ta[2,1]-1/ta[2,3])
+              ic.rr <- exp(log(medidas[2])+c(-1,1)*cuantil*se.log.rr)
+                   # IC de odds ratio, OR
+              se.log.or <- sqrt(1/ta[1,1]+1/ta[1,2]+1/ta[2,1]+1/ta[2,2])
+              ic.or <- exp(log(medidas[3])+c(-1,1)*cuantil*se.log.or)
+                   # IC de number needed to treat, NNT
+              ic.nnt <- c(NA,NA)
+              if (ic.ard[1]*ic.ard[2]>0) ic.nnt <- 1/ic.ard[c(2,1)]
+                   # Preparación de la salida
+              int.conf <- rbind(ic.ard,ic.rr,ic.or,ic.nnt)
+              resultado <- cbind(medidas,int.conf)
+              rownames(resultado) <- names(medidas)
+              colnames(resultado) <- c('estimación',paste('IC',round(conf*100,2),"inf",sep="."),
+                                       paste('IC',round(conf*100,2),"sup",sep="."))
+              return(resultado)}
+
+IC.prop.95<-IC.proporciones(tabla)
+IC.prop.80<-IC.proporciones(tabla,0.8)
+
+IC.prop.tabla<-data.frame(IC.prop.95,IC.prop.80[,2:3])
+kable(IC.prop.tabla,caption="Medidas del efecto del tratamiento - IC 95% y 80%",digits=3)
+```
+
+\pagebreak
+
+**Regresión logística**
+
+\pagebreak
+
+## 2. Se va a realizar un ensayo algo más grande en el que se va a utilizar un nivel de significatividad $\alpha$ = 0.05. Se desea obtener una potencia del 80% para detectar probabilidades pA = 0.5 y pB = 0.7. ¿Cuántos pacientes por grupo se necesitan? ¿Variaría mucho ese tamaño si se quisiera una potencia del 90% o del 95%? ¿Y si pB = 0.6?
+
+\pagebreak
+
+```{r session_info}
+sessionInfo()
+```

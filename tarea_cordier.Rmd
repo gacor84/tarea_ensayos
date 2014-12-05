@@ -473,11 +473,11 @@ ggplot(data = dat.pol.fit,aes(x = antes,y = despues,colour = grupo,shape = grupo
 
 ## 2. Se va a realizar un ensayo algo más grande en el que se va a utilizar un nivel de significatividad $\alpha$ = 0.05. Se desea obtener una potencia del 95% para detectar diferencias de medias (en escala logarítmica) de 0.4 unidades. ¿Cuántos pacientes por grupo se necesitan? ¿Variaría mucho el tamaño muestral si en lugar de utilizar un estimador puntual de la varianza, común a ambos grupos, se utilizara el extremo superior del intervalo de confianza al 80% sobre esa varianza desconocida?
 
-* Utilizando estimador puntual de varianza común
++ **Utilizando estimador puntual de varianza común**
 
 $\alpha=0.05$  
 $\text{potencia}=0.95$  
-$\text{detect.} \ \bar{x}_\text{t.despues}-\bar{x}_\text{c.despues}=0.4$  
+$\delta = \mu_\text{t.despues}-\mu_\text{c.despues}=0.4$  
 
 $n_c=10$  
 $n_t=9$  
@@ -490,35 +490,54 @@ $S_{x_cx_t} = \sqrt{\frac{(n_c-1)s_{x_c}^2+(n_t-1)s_{x_t}^2}{n_c+n_t-2}}=0.45$
 # desviación típica común
 nc<-10
 nt<-9
-var_c<-with(dat.polipos,var(despues[grupo=="control"])); var_c
-var_t<-with(dat.polipos,var(despues[grupo=="tratado"])); var_t
-sigm<-sqrt(((nc-1)*var_c+(nt-1)*var_t)/(nc+nt-2)); sigm
+(var_c<-with(dat.polipos,var(despues[grupo=="control"])))
+(var_t<-with(dat.polipos,var(despues[grupo=="tratado"])))
+(sigm<-sqrt(((nc-1)*var_c+(nt-1)*var_t)/(nc+nt-2)))
+alf<-0.05
+delt<-0.4
+pot<-0.95
 ```
-
-```{r N,echo=FALSE,results='hide'}
-# tamaño muestral
-power.t.test(delta = 0.4,sd = sigm,sig.level = 0.05,power = 0.95) 
-# (alternative="two.sided" por defecto)
-```
-
-```
-     Two-sample t test power calculation 
-
-              n = 33.51421
-          delta = 0.4
-             sd = 0.447458
-      sig.level = 0.05
-          power = 0.95
-    alternative = two.sided
-
-NOTE: n is number in *each* group
-```
-Tamaño muestral necesario para cada grupo $N = 34$.
 $\\$
 
-* Utilizando extremo superior del intervalo de confianza al 80% sobre varianza desconocida
+```{r N,echo=FALSE}
+# tamaño muestral
 
-*preguntar*
+N<-power.t.test(delta = delt,sd = sigm,sig.level = alf,power = pot) 
+# (alternative="two.sided" por defecto)
+
+kable(data.frame(delta=N$delta,sd=round(N$sd,2),alpha=N$sig.level,
+                 power=N$power,N=round(N$n,0)),
+      caption="Two-sample t test power calculation")
+```
+
+Tamaño muestral necesario para cada grupo $N = 34$
+$\\$
+
+ó
+$\\$
+
+$\alpha=0.05$  
+$\beta=1-\text{potencia}=1-0.95=0.05$  
+$\delta = \mu_\text{t.despues}-\mu_\text{c.despues}=0.4$  
+
+$S_{x_cx_t} =0.45$
+$\\$
+
+$N=\frac{2\sigma^2(Z_{1-\beta}+Z_{1-\alpha/2})^2}{(\mu_t-\mu_c)^2}$
+
+```{r N2,echo=FALSE,eval=FALSE}
+# tamaño muestral 2
+(bet<-1-pot)
+(N2 <- round(2*(sigm/delt)^2*(sum(qnorm(c(1-bet,1-alf/2),0,1)))^2,0))
+```
+$\\$
+
+Tamaño muestral necesario para cada grupo $N=33$
+$\\$
+
++ **Utilizando extremo superior del intervalo de confianza al 80% sobre varianza desconocida**
+
+*¿?*
 
 \pagebreak
 
@@ -814,21 +833,34 @@ ggplot(data = dat.pol.fit,aes(x = antes,y = despues,colour = grupo,shape = grupo
 * Estimador varianza
 
 ```{r parametros_ANEXO,eval=FALSE}
-# estimador desviación típica común
+# desviación típica común
 nc<-10
 nt<-9
-var_c<-with(dat.polipos,var(despues[grupo=="control"])); var_c
-var_t<-with(dat.polipos,var(despues[grupo=="tratado"])); var_t
-sigm<-sqrt(((nc-1)*var_c+(nt-1)*var_t)/(nc+nt-2)); sigm
+(var_c<-with(dat.polipos,var(despues[grupo=="control"])))
+(var_t<-with(dat.polipos,var(despues[grupo=="tratado"])))
+(sigm<-sqrt(((nc-1)*var_c+(nt-1)*var_t)/(nc+nt-2)))
+# parámetros
+alf<-0.05
+delt<-0.4
+pot<-0.95
 ```
 
 ```{r N_ANEXO,eval=FALSE}
 # tamaño muestral
-power.t.test(delta = 0.4,sd = sigm,sig.level = 0.05,power = 0.95) 
+
+N<-power.t.test(delta = delt,sd = sigm,sig.level = alf,power = pot) 
 # (alternative="two.sided" por defecto)
+
+kable(data.frame(delta=N$delta,sd=round(N$sd,2),alpha=N$sig.level,
+                 power=N$power,N=round(N$n,0)),
+      caption="Two-sample t test power calculation")
 ```
 
-* IC
+```{r N2_ANEXO,eval=FALSE}
+# tamaño muestral 2
+(bet<-1-pot)
+(N2 <- round(2*(sigm/delt)^2*(sum(qnorm(c(1-bet,1-alf/2),0,1)))^2,0))
+```
 
 \pagebreak
 
@@ -873,7 +905,7 @@ kable(sum.datos,caption = "Sumario")
 
 ## 1. Análisis estadístico de los datos. ¿Tiene algún efecto el tratamiento en los resultados? ¿Influyen las covariables?
 
-* Análisis descriptivo
++ **Análisis descriptivo**
 
 ```{r sum_datos_grupos,echo=FALSE}
 # sumario por grupos
@@ -918,7 +950,7 @@ El tratamiento sin radiación parece ser más efectivo que el tratamiento con ra
 
 \pagebreak
 
-* Análisis estadístico
++ **Análisis estadístico**
 
 **Comparación de frecuencias observadas-esperadas: Ji-cuadrado**
 $\\$
@@ -958,7 +990,7 @@ kable(data.frame(statistic=result$statistic,df=result$parameter,p.value=result$p
       caption="Pearson's Chi-squared test",digits=3)
 ```
 
-$p-valor > \alpha=0.05 \rightarrow$ no se rechazaría $H_0$
+$p-valor > \alpha=0.05 \rightarrow$ no se rechazaría $H_0$ con $\alpha=0.05$ (sí con $\alpha=0.1$)
 
 \pagebreak
 
@@ -976,18 +1008,28 @@ kable(tabla.abcd)
 
 Siendo el riesgo la no efectividad, *T* radiación, y *C* no radiación:
 
-+ $AR$: riesgo absoluto (proporciones) $\pi_T=\frac{a}{a+b}, \ \pi_C=\frac{c}{c+d}$
-
-+ $ARD$: diferencia de riesgos $\pi_C-\pi_C$
++ $ARD$: diferencia de riesgos $\pi_T-\pi_C$
+    + $AR$: riesgo absoluto (proporciones) $\pi_T=\frac{a}{a+b}, \ \pi_C=\frac{c}{c+d}$
 
 + $RR$: cociente de riesgos $\frac{\pi_T}{\pi_C}$
 
-+ $O$: odds $\frac{\pi_\text{no ef.}}{\pi_\text{ef.}} \rightarrow O_T = \frac{a}{b}, \ O_C = \frac{c}{d}$
-
 + $OR$: odds ratio $\frac{O_T}{O_C}$
+    + $O$: odds $\frac{\pi_\text{no ef.}}{\pi_\text{ef.}} \rightarrow O_T = \frac{a}{b}, \ O_C = \frac{c}{d}$
 
 + $NNT$: número que se necesita tratar $\frac{1}{\text{ARD}}$
 $\\$
+
+```{r proporciones,echo=FALSE,eval=FALSE}
+# proporciones y ratios a mano
+(pi.t<-10/19)
+(pi.c<-11/39)
+(ard<-pi.t-pi.c)
+(rr<-pi.t/pi.c)
+(o.t<-10/9)
+(o.c<-11/28)
+(or<-o.t/o.c)
+(nnt<-1/ard)
+```
 
 ```{r IC_prop,echo=FALSE}
 IC.proporciones <- function(tabla,conf=0.95){
@@ -1036,15 +1078,67 @@ IC.prop.80<-IC.proporciones(tabla,0.8)
 
 IC.prop.tabla<-data.frame(IC.prop.95,IC.prop.80[,2:3])
 kable(IC.prop.tabla,caption="Medidas del efecto del tratamiento - IC 95% y 80%",digits=3)
+# ic.95.NNT=NA(¿?)
 ```
+
++ $ARD$: la disminución en el riesgo en el grupo control (no radiación) es de unos 24 pacientes por cada 100 en comparación con el grupo de tratamiento (radiación)
+
++ $RR$: el cociente de riesgos es $>1 \rightarrow$ el grupo de tratamiento presenta mayor riesgo que el grupo control
+
++ $OR$: el cociente de odds `no efectivo / efectivo` $>1 \rightarrow$ el grupo de tratamiento es menos efectivo que el grupo control
+
++ $NNT$: el número de pacientes que se necesitaría tratar para prevenir una muerte es $=4$
 
 \pagebreak
 
-**Regresión logística**
+**Regresión logística: influencia de covariables**
+$\\$
+
+$$\pi_i=\frac{\text{exp}(\beta_0+\beta_1X+...)}{1+\text{exp}(\beta_0+\beta_1X+...)}$$
+
+$$logit(\pi_i)=log(\frac{\pi_i}{1-\pi_i})=log(\text{ODDS})=\beta_0+\beta_1X+...$$
+
+$$ODDS=\text{exp}(\beta_0+\beta_1X+...)$$
+$\\$
+
+```{r logit_response,echo=FALSE,results='hide'}
+#  With binomial data the response can be either a vector or a matrix with two columns.
+# 
+#  If the response is a vector it can be numeric with 0 for failure and 1 for success, or **a factor with the first level representing "failure" and all others representing "success"**. In these cases R generates a vector of ones to represent the binomial denominators.
+# 
+#  Alternatively, the response can be a matrix where the first column is the number of "successes" and the second column is the number of "failures". In this case R adds the two columns together to produce the correct binomial denominator. 
+
+# 'failure'=no efectivo, 'success'=efectivo
+levels(datos$efectivo)
+```
+
+```{r logit_step,echo=FALSE,results='hide'}
+logit.full<-glm(formula = efectivo~.^2,family = binomial(link=logit), data = datos)
+logit<-step(logit.full)
+```
+
+```{r logit,echo=FALSE}
+sum.logit<-summary(logit)
+sum.logit$coefficients
+logit$coefficients
+```
+
+
+Modelo final: $logit(\pi_{efect.})=\beta_0+\beta_1\text{grupo}+\beta_2\text{sexo}+\beta_3\text{edad}+\beta{4}\text{kps}+\beta_2\beta_3\text{sexo:edad}$
 
 \pagebreak
 
 ## 2. Se va a realizar un ensayo algo más grande en el que se va a utilizar un nivel de significatividad $\alpha$ = 0.05. Se desea obtener una potencia del 80% para detectar probabilidades pA = 0.5 y pB = 0.7. ¿Cuántos pacientes por grupo se necesitan? ¿Variaría mucho ese tamaño si se quisiera una potencia del 90% o del 95%? ¿Y si pB = 0.6?
+
+\pagebreak
+
+## Informe final
+
+blablabla
+
+\pagebreak
+
+# ANEXO II
 
 \pagebreak
 

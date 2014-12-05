@@ -396,11 +396,11 @@ $\\$
 
 ## 2. Se va a realizar un ensayo algo más grande en el que se va a utilizar un nivel de significatividad $\alpha$ = 0.05. Se desea obtener una potencia del 95% para detectar diferencias de medias (en escala logarítmica) de 0.4 unidades. ¿Cuántos pacientes por grupo se necesitan? ¿Variaría mucho el tamaño muestral si en lugar de utilizar un estimador puntual de la varianza, común a ambos grupos, se utilizara el extremo superior del intervalo de confianza al 80% sobre esa varianza desconocida?
 
-* Utilizando estimador puntual de varianza común
++ **Utilizando estimador puntual de varianza común**
 
 $\alpha=0.05$  
 $\text{potencia}=0.95$  
-$\text{detect.} \ \bar{x}_\text{t.despues}-\bar{x}_\text{c.despues}=0.4$  
+$\delta = \mu_\text{t.despues}-\mu_\text{c.despues}=0.4$  
 
 $n_c=10$  
 $n_t=9$  
@@ -410,27 +410,37 @@ $S^2_t=0.21$
 $S_{x_cx_t} = \sqrt{\frac{(n_c-1)s_{x_c}^2+(n_t-1)s_{x_t}^2}{n_c+n_t-2}}=0.45$
 
 
-
-
-
-```
-     Two-sample t test power calculation 
-
-              n = 33.51421
-          delta = 0.4
-             sd = 0.447458
-      sig.level = 0.05
-          power = 0.95
-    alternative = two.sided
-
-NOTE: n is number in *each* group
-```
-Tamaño muestral necesario para cada grupo $N = 34$.
 $\\$
 
-* Utilizando extremo superior del intervalo de confianza al 80% sobre varianza desconocida
 
-*preguntar*
+| delta|   sd| alpha| power|  N|
+|-----:|----:|-----:|-----:|--:|
+|   0.4| 0.45|  0.05|  0.95| 34|
+
+Tamaño muestral necesario para cada grupo $N = 34$
+$\\$
+
+ó
+$\\$
+
+$\alpha=0.05$  
+$\beta=1-\text{potencia}=1-0.95=0.05$  
+$\delta = \mu_\text{t.despues}-\mu_\text{c.despues}=0.4$  
+
+$S_{x_cx_t} =0.45$
+$\\$
+
+$N=\frac{2\sigma^2(Z_{1-\beta}+Z_{1-\alpha/2})^2}{(\mu_t-\mu_c)^2}$
+
+
+$\\$
+
+Tamaño muestral necesario para cada grupo $N=33$
+$\\$
+
++ **Utilizando extremo superior del intervalo de confianza al 80% sobre varianza desconocida**
+
+*¿?*
 
 \pagebreak
 
@@ -801,22 +811,36 @@ ggplot(data = dat.pol.fit,aes(x = antes,y = despues,colour = grupo,shape = grupo
 
 
 ```r
-# estimador desviación típica común
+# desviación típica común
 nc<-10
 nt<-9
-var_c<-with(dat.polipos,var(despues[grupo=="control"])); var_c
-var_t<-with(dat.polipos,var(despues[grupo=="tratado"])); var_t
-sigm<-sqrt(((nc-1)*var_c+(nt-1)*var_t)/(nc+nt-2)); sigm
+(var_c<-with(dat.polipos,var(despues[grupo=="control"])))
+(var_t<-with(dat.polipos,var(despues[grupo=="tratado"])))
+(sigm<-sqrt(((nc-1)*var_c+(nt-1)*var_t)/(nc+nt-2)))
+# parámetros
+alf<-0.05
+delt<-0.4
+pot<-0.95
 ```
 
 
 ```r
 # tamaño muestral
-power.t.test(delta = 0.4,sd = sigm,sig.level = 0.05,power = 0.95) 
+
+N<-power.t.test(delta = delt,sd = sigm,sig.level = alf,power = pot) 
 # (alternative="two.sided" por defecto)
+
+kable(data.frame(delta=N$delta,sd=round(N$sd,2),alpha=N$sig.level,
+                 power=N$power,N=round(N$n,0)),
+      caption="Two-sample t test power calculation")
 ```
 
-* IC
+
+```r
+# tamaño muestral 2
+(bet<-1-pot)
+(N2 <- round(2*(sigm/delt)^2*(sum(qnorm(c(1-bet,1-alf/2),0,1)))^2,0))
+```
 
 \pagebreak
 
@@ -863,7 +887,7 @@ $\\$
 
 ## 1. Análisis estadístico de los datos. ¿Tiene algún efecto el tratamiento en los resultados? ¿Influyen las covariables?
 
-* Análisis descriptivo
++ **Análisis descriptivo**
 
 
 
@@ -883,7 +907,7 @@ El tratamiento sin radiación parece ser más efectivo que el tratamiento con ra
 
 \pagebreak
 
-* Análisis estadístico
++ **Análisis estadístico**
 
 **Comparación de frecuencias observadas-esperadas: Ji-cuadrado**
 $\\$
@@ -925,7 +949,7 @@ $\\$
 |:---------|---------:|--:|-------:|
 |X-squared |       3.3|  1|   0.069|
 
-$p-valor > \alpha=0.05 \rightarrow$ no se rechazaría $H_0$
+$p-valor > \alpha=0.05 \rightarrow$ no se rechazaría $H_0$ con $\alpha=0.05$ (sí con $\alpha=0.1$)
 
 \pagebreak
 
@@ -948,18 +972,18 @@ $\\$
 
 Siendo el riesgo la no efectividad, *T* radiación, y *C* no radiación:
 
-+ $AR$: riesgo absoluto (proporciones) $\pi_T=\frac{a}{a+b}, \ \pi_C=\frac{c}{c+d}$
-
-+ $ARD$: diferencia de riesgos $\pi_C-\pi_C$
++ $ARD$: diferencia de riesgos $\pi_T-\pi_C$
+    + $AR$: riesgo absoluto (proporciones) $\pi_T=\frac{a}{a+b}, \ \pi_C=\frac{c}{c+d}$
 
 + $RR$: cociente de riesgos $\frac{\pi_T}{\pi_C}$
 
-+ $O$: odds $\frac{\pi_\text{no ef.}}{\pi_\text{ef.}} \rightarrow O_T = \frac{a}{b}, \ O_C = \frac{c}{d}$
-
 + $OR$: odds ratio $\frac{O_T}{O_C}$
+    + $O$: odds $\frac{\pi_\text{no ef.}}{\pi_\text{ef.}} \rightarrow O_T = \frac{a}{b}, \ O_C = \frac{c}{d}$
 
 + $NNT$: número que se necesita tratar $\frac{1}{\text{ARD}}$
 $\\$
+
+
 
 
 |    | estimación| IC.95.inf| IC.95.sup| IC.80.inf| IC.80.sup|
@@ -969,13 +993,64 @@ $\\$
 |OR  |      2.828|     0.905|     8.835|     1.343|     5.956|
 |NNT |      4.094|        NA|        NA|     2.466|    14.289|
 
++ $ARD$: la disminución en el riesgo en el grupo control (no radiación) es de unos 24 pacientes por cada 100 en comparación con el grupo de tratamiento (radiación)
+
++ $RR$: el cociente de riesgos es $>1 \rightarrow$ el grupo de tratamiento presenta mayor riesgo que el grupo control
+
++ $OR$: el cociente de odds `no efectivo / efectivo` $>1 \rightarrow$ el grupo de tratamiento es menos efectivo que el grupo control
+
++ $NNT$: el número de pacientes que se necesitaría tratar para prevenir una muerte es $=4$
+
 \pagebreak
 
-**Regresión logística**
+**Regresión logística: influencia de covariables**
+$\\$
+
+$$\pi_i=\frac{\text{exp}(\beta_0+\beta_1X+...)}{1+\text{exp}(\beta_0+\beta_1X+...)}$$
+
+$$logit(\pi_i)=log(\frac{\pi_i}{1-\pi_i})=log(\text{ODDS})=\beta_0+\beta_1X+...$$
+
+$$ODDS=\text{exp}(\beta_0+\beta_1X+...)$$
+$\\$
+
+
+
+
+
+
+```
+##                      Estimate Std. Error   z value    Pr(>|z|)
+## (Intercept)       -6.10096688  2.1311454 -2.862764 0.004199629
+## grupoNo.Rad        1.32609029  0.7468169  1.775656 0.075789565
+## sexoMujer          4.22048176  1.6046294  2.630191 0.008533689
+## edad>60            1.50148028  0.8926110  1.682122 0.092545260
+## kps                0.05606434  0.0241632  2.320237 0.020328071
+## sexoMujer:edad>60 -4.66903190  1.8170519 -2.569564 0.010182648
+```
+
+```
+##       (Intercept)       grupoNo.Rad         sexoMujer           edad>60 
+##       -6.10096688        1.32609029        4.22048176        1.50148028 
+##               kps sexoMujer:edad>60 
+##        0.05606434       -4.66903190
+```
+
+
+Modelo final: $logit(\pi_{efect.})=\beta_0+\beta_1\text{grupo}+\beta_2\text{sexo}+\beta_3\text{edad}+\beta{4}\text{kps}+\beta_2\beta_3\text{sexo:edad}$
 
 \pagebreak
 
 ## 2. Se va a realizar un ensayo algo más grande en el que se va a utilizar un nivel de significatividad $\alpha$ = 0.05. Se desea obtener una potencia del 80% para detectar probabilidades pA = 0.5 y pB = 0.7. ¿Cuántos pacientes por grupo se necesitan? ¿Variaría mucho ese tamaño si se quisiera una potencia del 90% o del 95%? ¿Y si pB = 0.6?
+
+\pagebreak
+
+## Informe final
+
+blablabla
+
+\pagebreak
+
+# ANEXO II
 
 \pagebreak
 
@@ -1001,8 +1076,8 @@ sessionInfo()
 ## [8] methods   base     
 ## 
 ## other attached packages:
-## [1] reshape2_1.4    vcd_1.3-2       gridExtra_0.9.1 doBy_4.5-11    
-## [5] MASS_7.3-35     survival_2.37-7 knitr_1.7       ggplot2_1.0.0  
+## [1] gridExtra_0.9.1 doBy_4.5-11     MASS_7.3-35     survival_2.37-7
+## [5] ggplot2_1.0.0   reshape2_1.4    knitr_1.7      
 ## 
 ## loaded via a namespace (and not attached):
 ##  [1] colorspace_1.2-4 digest_0.6.3     evaluate_0.5.5   formatR_1.0     

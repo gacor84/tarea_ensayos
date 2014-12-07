@@ -391,7 +391,6 @@ $\\$
 
 ![plot of chunk ancova_main_plot](./figures/ancova_main_plot-1.png) 
 
-
 \pagebreak
 
 ## 2. Se va a realizar un ensayo algo más grande en el que se va a utilizar un nivel de significatividad $\alpha$ = 0.05. Se desea obtener una potencia del 95% para detectar diferencias de medias (en escala logarítmica) de 0.4 unidades. ¿Cuántos pacientes por grupo se necesitan? ¿Variaría mucho el tamaño muestral si en lugar de utilizar un estimador puntual de la varianza, común a ambos grupos, se utilizara el extremo superior del intervalo de confianza al 80% sobre esa varianza desconocida?
@@ -1006,9 +1005,7 @@ $\\$
 **Regresión logística: influencia de covariables**
 $\\$
 
-$$\pi_i=\frac{\text{exp}(\beta_0+\beta_1X+...)}{1+\text{exp}(\beta_0+\beta_1X+...)}$$
-
-$$logit(\pi_i)=log(\frac{\pi_i}{1-\pi_i})=log(\text{ODDS})=\beta_0+\beta_1X+...$$
+$$\pi_i=\frac{\text{exp}(\beta_0+\beta_1X+...)}{1+\text{exp}(\beta_0+\beta_1X+...)} \rightarrow logit(\pi_i)=log(\frac{\pi_i}{1-\pi_i})=log(\text{ODDS})=\beta_0+\beta_1X+...$$
 
 $$ODDS=\text{exp}(\beta_0+\beta_1X+...)$$
 $\\$
@@ -1017,26 +1014,90 @@ $\\$
 
 
 
-
-```
-##                      Estimate Std. Error   z value    Pr(>|z|)
-## (Intercept)       -6.10096688  2.1311454 -2.862764 0.004199629
-## grupoNo.Rad        1.32609029  0.7468169  1.775656 0.075789565
-## sexoMujer          4.22048176  1.6046294  2.630191 0.008533689
-## edad>60            1.50148028  0.8926110  1.682122 0.092545260
-## kps                0.05606434  0.0241632  2.320237 0.020328071
-## sexoMujer:edad>60 -4.66903190  1.8170519 -2.569564 0.010182648
-```
-
-```
-##       (Intercept)       grupoNo.Rad         sexoMujer           edad>60 
-##       -6.10096688        1.32609029        4.22048176        1.50148028 
-##               kps sexoMujer:edad>60 
-##        0.05606434       -4.66903190
-```
-
-
 Modelo final: $logit(\pi_{efect.})=\beta_0+\beta_1\text{grupo}+\beta_2\text{sexo}+\beta_3\text{edad}+\beta{4}\text{kps}+\beta_2\beta_3\text{sexo:edad}$
+
+
+```
+## 
+## Call:
+## glm(formula = efectivo ~ grupo + sexo + edad + kps + sexo:edad, 
+##     family = binomial(link = logit), data = datos)
+## 
+## Deviance Residuals: 
+##     Min       1Q   Median       3Q      Max  
+## -1.9644  -0.7978   0.4303   0.8109   1.9747  
+## 
+## Coefficients:
+##                   Estimate Std. Error z value Pr(>|z|)   
+## (Intercept)       -6.10097    2.13115  -2.863  0.00420 **
+## grupoNo.Rad        1.32609    0.74682   1.776  0.07579 . 
+## sexoMujer          4.22048    1.60463   2.630  0.00853 **
+## edad>60            1.50148    0.89261   1.682  0.09255 . 
+## kps                0.05606    0.02416   2.320  0.02033 * 
+## sexoMujer:edad>60 -4.66903    1.81705  -2.570  0.01018 * 
+## ---
+## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+## 
+## (Dispersion parameter for binomial family taken to be 1)
+## 
+##     Null deviance: 75.934  on 57  degrees of freedom
+## Residual deviance: 55.347  on 52  degrees of freedom
+## AIC: 67.347
+## 
+## Number of Fisher Scoring iterations: 5
+```
+
+donde:
+
++ `Intercept`: $\beta_0+\beta_1\text{grupoSi.Rad}+\beta_2\text{sexoHombre}+\beta_3\text{edad<60}+\beta_4\text{kps=0}+\beta_2\beta_3\text{sexoHombre:edad<60}$
+
++ `grupoNo.Rad`: $\beta_1\text{grupoNo.Rad}-\beta_1\text{grupoSi.Rad}$
+
++ `sexoMujer`: $\beta_2\text{sexoMujer}-\beta_2\text{sexoHombre}$
+
++ `edad>60`: $\beta_3\text{edad>60}-\beta_3\text{edad<60}$
+
++ `kps`: $\beta_4\text{kps=1}-\beta_4\text{kps=0}$
+
++ `sexoMujer:edad>60`: $\beta_2\beta_3\text{sexoMujer:edad>60}-\beta_2\beta_3\text{sexoHombre:edad<60}$
+
+$\rightarrow$ exp(`grupoNo.Rad`) $=\text{exp}(\beta_1\text{grupoNo.Rad}-\beta_1\text{grupoSi.Rad})=\frac{\text{exp}(\beta_1\text{grupoNo.Rad})}{\text{exp}(\beta_1\text{grupoSi.Rad})}=\frac{\text{ODDS grupoNo.Rad}}{\text{ODDS grupoSi.Rad}}$
+$\\$
+
+$\text{ODDS RATIO No.Rad vs Si.Rad}=$ exp(`grupoNo.Rad`)
+$\\$
+
+
+|                  |     OR| 2.5 %|   97.5 %|
+|:-----------------|------:|-----:|--------:|
+|(Intercept)       |  0.002| 0.000|    0.095|
+|grupoNo.Rad       |  3.766| 0.916|   18.107|
+|sexoMujer         | 68.066| 4.411| 2814.829|
+|edad>60           |  4.488| 0.822|   28.938|
+|kps               |  1.058| 1.013|    1.116|
+|sexoMujer:edad>60 |  0.009| 0.000|    0.242|
+
+$\rightarrow$ el cociente de odds efectivo / no efectivo > 1 $\rightarrow$ el grupo de no radiación es más efectivo que el grupo de radiación (significativo para $\alpha=0.1$)
+$\\$
+
+$p=\frac{ODDS}{1+ODDS}$
+
+$\pi_i=\frac{\text{exp}(\beta_0+\beta_1\text{grupo}+\beta_2\text{sexo}+\beta_3\text{edad}+\beta_4\text{kps}+\beta_2\beta_3\text{sexo:edad})}{1+\text{exp}(\beta_0+\beta_1\text{grupo}+\beta_2\text{sexo}+\beta_3\text{edad}+\beta_4\text{kps}+\beta_2\beta_3\text{sexo:edad}))}=\frac{\text{exp(predictor lineal)}}{1+\text{exp(predictor lineal)}}$
+$\\$
+
+
+|grupo  |sexo   |edad |    kps|  prob|
+|:------|:------|:----|------:|-----:|
+|No.Rad |Hombre |<60  | 80.776| 0.439|
+|No.Rad |Hombre |>60  | 80.776| 0.778|
+|No.Rad |Mujer  |<60  | 80.776| 0.982|
+|No.Rad |Mujer  |>60  | 80.776| 0.691|
+|Si.Rad |Hombre |<60  | 80.776| 0.172|
+|Si.Rad |Hombre |>60  | 80.776| 0.482|
+|Si.Rad |Mujer  |<60  | 80.776| 0.934|
+|Si.Rad |Mujer  |>60  | 80.776| 0.373|
+
+![plot of chunk plot_probs](./figures/plot_probs-1.png) 
 
 \pagebreak
 
@@ -1076,8 +1137,8 @@ sessionInfo()
 ## [8] methods   base     
 ## 
 ## other attached packages:
-## [1] gridExtra_0.9.1 doBy_4.5-11     MASS_7.3-35     survival_2.37-7
-## [5] ggplot2_1.0.0   reshape2_1.4    knitr_1.7      
+## [1] gridExtra_0.9.1 reshape2_1.4    doBy_4.5-11     MASS_7.3-35    
+## [5] survival_2.37-7 ggplot2_1.0.0   knitr_1.7      
 ## 
 ## loaded via a namespace (and not attached):
 ##  [1] colorspace_1.2-4 digest_0.6.3     evaluate_0.5.5   formatR_1.0     

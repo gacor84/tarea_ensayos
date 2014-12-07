@@ -459,15 +459,22 @@ kable(dat.pol.IC,caption="Ajuste modelo final - IC 95%",digits=3)
 
 ```{r ancova_main_plot,echo=FALSE,fig.height=3,fig.width=6}
 # plot
+newdata.pol<-data.frame(grupo=rep(c("control","tratado"),each=31),
+                        antes=rep(seq(0,3,by = 0.1),2),
+                        despues=rep(seq(0,3,by=0.1),2))
+
+newdata.pol.fit<-cbind(newdata.pol,
+                       predict(pol.lm_main,newdata = newdata.pol,interval="confidence"))
+
 ggplot(data = dat.pol.fit,aes(x = antes,y = despues,colour = grupo,shape = grupo))+
     geom_point(size=3)+
     labs(title="",x="\nantes",y="después\n")+
     theme(axis.title=element_text(size=8),
           legend.title=element_text(size=8))+
-    geom_line(aes(x=antes,y=fit))+
-    geom_ribbon(aes(y=fit,ymin=IC_lwr,ymax=IC_upr,fill=grupo),alpha=0.2,linetype="dashed")
+    geom_line(data=newdata.pol.fit,aes(x=antes,y=fit))+
+    geom_ribbon(data=newdata.pol.fit,
+                aes(y=fit,ymin=lwr,ymax=upr,fill=grupo),alpha=0.2,linetype="blank")
 ```
-
 
 \pagebreak
 
@@ -1094,9 +1101,7 @@ kable(IC.prop.tabla,caption="Medidas del efecto del tratamiento - IC 95% y 80%",
 **Regresión logística: influencia de covariables**
 $\\$
 
-$$\pi_i=\frac{\text{exp}(\beta_0+\beta_1X+...)}{1+\text{exp}(\beta_0+\beta_1X+...)}$$
-
-$$logit(\pi_i)=log(\frac{\pi_i}{1-\pi_i})=log(\text{ODDS})=\beta_0+\beta_1X+...$$
+$$\pi_i=\frac{\text{exp}(\beta_0+\beta_1X+...)}{1+\text{exp}(\beta_0+\beta_1X+...)} \rightarrow logit(\pi_i)=log(\frac{\pi_i}{1-\pi_i})=log(\text{ODDS})=\beta_0+\beta_1X+...$$
 
 $$ODDS=\text{exp}(\beta_0+\beta_1X+...)$$
 $\\$
@@ -1117,14 +1122,120 @@ logit.full<-glm(formula = efectivo~.^2,family = binomial(link=logit), data = dat
 logit<-step(logit.full)
 ```
 
+Modelo final: $logit(\pi_{efect.})=\beta_0+\beta_1\text{grupo}+\beta_2\text{sexo}+\beta_3\text{edad}+\beta{4}\text{kps}+\beta_2\beta_3\text{sexo:edad}$
+
 ```{r logit,echo=FALSE}
-sum.logit<-summary(logit)
-sum.logit$coefficients
-logit$coefficients
+summary(logit)
 ```
 
+donde:
 
-Modelo final: $logit(\pi_{efect.})=\beta_0+\beta_1\text{grupo}+\beta_2\text{sexo}+\beta_3\text{edad}+\beta{4}\text{kps}+\beta_2\beta_3\text{sexo:edad}$
++ `Intercept`: $\beta_0+\beta_1\text{grupoSi.Rad}+\beta_2\text{sexoHombre}+\beta_3\text{edad<60}+\beta_4\text{kps=0}+\beta_2\beta_3\text{sexoHombre:edad<60}$
+
++ `grupoNo.Rad`: $\beta_1\text{grupoNo.Rad}-\beta_1\text{grupoSi.Rad}$
+
++ `sexoMujer`: $\beta_2\text{sexoMujer}-\beta_2\text{sexoHombre}$
+
++ `edad>60`: $\beta_3\text{edad>60}-\beta_3\text{edad<60}$
+
++ `kps`: $\beta_4\text{kps=1}-\beta_4\text{kps=0}$
+
++ `sexoMujer:edad>60`: $\beta_2\beta_3\text{sexoMujer:edad>60}-\beta_2\beta_3\text{sexoHombre:edad<60}$
+
+$\rightarrow$ exp(`grupoNo.Rad`) $=\text{exp}(\beta_1\text{grupoNo.Rad}-\beta_1\text{grupoSi.Rad})=\frac{\text{exp}(\beta_1\text{grupoNo.Rad})}{\text{exp}(\beta_1\text{grupoSi.Rad})}=\frac{\text{ODDS grupoNo.Rad}}{\text{ODDS grupoSi.Rad}}$
+$\\$
+
+$\text{ODDS RATIO No.Rad vs Si.Rad}=$ exp(`grupoNo.Rad`)
+$\\$
+
+```{r OR_IC,echo=FALSE,message=FALSE}
+# log.OR_g<-logit$coefficients[2]
+# OR_g<-exp(log.OR_g)
+# SE.log.OR_g<-summary(logit)$coef[2,2]
+# IC.OR_g<-exp(log.OR_g+c(-1,1)*1.96*SE.log.OR_g) # IC no sale exactamente igual
+
+OR.table<-exp(cbind(OR = coef(logit), confint(logit)))
+kable(OR.table,caption="Odds ratios - IC 95%",digits=3)
+```
+
+$\rightarrow$ el cociente de odds efectivo / no efectivo > 1 $\rightarrow$ el grupo de no radiación es más efectivo que el grupo de radiación (significativo para $\alpha=0.1$)
+$\\$
+
+$p=\frac{ODDS}{1+ODDS}$
+
+$\pi_i=\frac{\text{exp}(\beta_0+\beta_1\text{grupo}+\beta_2\text{sexo}+\beta_3\text{edad}+\beta_4\text{kps}+\beta_2\beta_3\text{sexo:edad})}{1+\text{exp}(\beta_0+\beta_1\text{grupo}+\beta_2\text{sexo}+\beta_3\text{edad}+\beta_4\text{kps}+\beta_2\beta_3\text{sexo:edad}))}=\frac{\text{exp(predictor lineal)}}{1+\text{exp(predictor lineal)}}$
+$\\$
+
+```{r probs_logit,echo=FALSE}
+logit.coefs<-logit$coefficients # =coef(logit)
+
+# Si.Rad, Hombre, edad<60, Hombre:edad<60 (para kps=0):
+
+# PL<-coefs[1]*1+coefs[2]*0+coefs[3]*0+coefs[4]*0+coefs[6]*0*0
+# prob<-exp(PL.1)/(1+exp(PL.1))
+# ó:
+# predict(object = logit,
+#         newdata = data.frame(grupo="Si.Rad",sexo="Hombre",edad="<60",kps=0),
+#         type="response")
+
+# probabilidades efectividad (para media kps):
+newdata.logit<-with(datos,data.frame(grupo=rep(c("No.Rad","Si.Rad"),each = 4),
+                                     sexo=rep(c("Hombre","Mujer"),each=2,length.out = 4),
+                                     edad=rep(c("<60",">60"),each=1,length.out = 8),
+                                     kps=mean(kps)))
+
+newdata.logit.fit<-cbind(newdata.logit,
+                         prob=predict(object = logit,newdata = newdata.logit,
+                                      type = "response"))
+kable(newdata.logit.fit,
+      caption="Probabilidades estimadas de efectividad para KPS medio",digits=3)
+```
+
+```{r plot_probs,echo=FALSE,fig.width=10,fig.height=8}
+# plot
+p.prob1<-ggplot(data = newdata.logit.fit,aes(x=grupo,y=prob,colour=edad,shape=sexo))+
+    geom_point(size=3)+
+    geom_line(aes(group=interaction(sexo,edad)))+
+    labs(x="",y="",
+         title="Probabilidades estimadas de efectividad de los tratamientos 
+         (para KPS medio)\n")+
+    theme(plot.title=element_text(size=10),
+          axis.title=element_text(size=8),
+          legend.title=element_text(size=8))
+
+# plot interacción sexo-edad
+p.prob2<-ggplot(data = newdata.logit.fit,aes(x=sexo,y=prob,colour=edad,shape=grupo))+
+    geom_point(size=3)+
+    geom_line(aes(group=interaction(grupo,edad)))+
+    labs(x="",y="",title="Efecto de la interaccion sexo-edad sobre la efectividad 
+         (para KPS medio)\n")+
+    theme(plot.title=element_text(size=10),
+          axis.title=element_text(size=8),
+          legend.title=element_text(size=8))
+
+# probabilidades efectividad:
+newdata.logit2<-with(datos,data.frame(
+    grupo=rep(c("No.Rad","Si.Rad"),each = 4,length.out = 8*length(40:100)),
+    sexo=rep(c("Hombre","Mujer"),each=2,length.out = 8*length(40:100)),
+    edad=rep(c("<60",">60"),each=1,length.out = 8*length(40:100)),
+    kps=rep(40:100,each = 8)))
+
+newdata.logit.fit2<-cbind(newdata.logit2,
+                         prob=predict(object = logit,newdata = newdata.logit2,
+                                      type = "response"))
+
+# plot
+p.prob3<-ggplot(data=newdata.logit.fit2,aes(x=kps,y=prob,colour=grupo,
+                                            shape=interaction(sexo,edad)))+
+    geom_point()+
+    geom_line()+
+    labs(x="\nKPS",y="",title="Probabilidades estimadas de efectividad\n")+
+    theme(plot.title=element_text(size=10),
+          axis.title=element_text(size=8),
+          legend.title=element_text(size=8))
+
+grid.arrange(arrangeGrob(p.prob1,p.prob2,ncol=2),p.prob3,ncol=1)
+```
 
 \pagebreak
 
